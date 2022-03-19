@@ -283,8 +283,7 @@ int main(int argc, char* argv[]) {
     throw std::runtime_error("failed to create landlock ruleset");
 
   struct landlock_path_beneath_attr path_beneath = {
-    .allowed_access = LANDLOCK_ACCESS_FS_EXECUTE |
-                      LANDLOCK_ACCESS_FS_READ_FILE |
+    .allowed_access = LANDLOCK_ACCESS_FS_READ_FILE |
                       LANDLOCK_ACCESS_FS_READ_DIR,
     .parent_fd = open(nixpkgs.c_str(), O_PATH | O_CLOEXEC),
   };
