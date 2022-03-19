@@ -1,25 +1,15 @@
 #define SYSTEM "dummy"
 #define HAVE_BOEHMGC 1
 
-#include <cstdlib>
-#include <cstring>
 #include <iostream>
 
-#include "eval-inline.hh"
-#include "eval.hh"
-#include "store-api.hh"
+#include "nix/store-api.hh"
+#include "nix/eval.hh"
+#include "nix/eval-inline.hh"
 
-using namespace nix;
-typedef std::set<Value*> ValuesSeen;
-
-std::ostream& printStringValue(std::ostream& str, const char* string);
-std::ostream& printValue(std::ostream& str,
-                           EvalState& state,
-                           Value& v,
-                           unsigned int maxDepth,
-                           ValuesSeen& seen);
-std::ostream& printValue(std::ostream& str,
-                           EvalState& state,
-                           Value& v,
-                           unsigned int maxDepth);
-
+std::ostream& printStringValue(std::ostream&, const char*);
+std::ostream& printValue(std::ostream&,
+                           nix::EvalState&,
+                           nix::Value& v,
+                           unsigned int,
+                           std::set<nix::Value*> &);

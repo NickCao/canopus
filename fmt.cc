@@ -13,14 +13,6 @@ static bool isVarName(std::string_view s) {
   return true;
 }
 
-std::ostream& printValue(std::ostream& str,
-                         EvalState& state,
-                         Value& v,
-                         unsigned int maxDepth) {
-  ValuesSeen seen;
-  return printValue(str, state, v, maxDepth, seen);
-}
-
 std::ostream& printStringValue(std::ostream& str, const char* string) {
   str << "\"";
   for (const char* i = string; *i; i++)
@@ -39,34 +31,34 @@ std::ostream& printStringValue(std::ostream& str, const char* string) {
 }
 
 std::ostream& printValue(std::ostream& str,
-                         EvalState& state,
-                         Value& v,
+                         nix::EvalState& state,
+                         nix::Value& v,
                          unsigned int maxDepth,
-                         ValuesSeen& seen) {
-  state.forceValue(v, [&]() { return v.determinePos(noPos); });
+                         std::set<nix::Value*>& seen) {
+  state.forceValue(v, [&]() { return v.determinePos(nix::noPos); });
   switch (v.type()) {
-    case nInt:
+    case nix::nInt:
       str << v.integer;
       break;
-    case nBool:
+    case nix::nBool:
       str << (v.boolean ? "true" : "false");
       break;
-    case nString:
+    case nix::nString:
       printStringValue(str, v.string.s);
       break;
-    case nPath:
+    case nix::nPath:
       str << v.path;  // !!! escaping?
       break;
-    case nNull:
+    case nix::nNull:
       str << "null";
       break;
-    case nAttrs: {
+    case nix::nAttrs: {
       seen.insert(&v);
       bool isDrv = state.isDerivation(v);
       if (isDrv) {
         str << "«derivation ";
-        Bindings::iterator i = v.attrs->find(state.sDrvPath);
-        PathSet context;
+        nix::Bindings::iterator i = v.attrs->find(state.sDrvPath);
+        nix::PathSet context;
         if (i != v.attrs->end())
           str << state.store->printStorePath(
               state.coerceToStorePath(*i->pos, *i->value, context));
@@ -76,7 +68,7 @@ std::ostream& printValue(std::ostream& str,
       }
       else if (maxDepth > 0) {
         str << "{ ";
-        typedef std::map<std::string, Value*> Sorted;
+        typedef std::map<std::string, nix::Value*> Sorted;
         Sorted sorted;
         for (auto& i : *v.attrs)
           sorted[i.name] = i.value;
@@ -91,7 +83,7 @@ std::ostream& printValue(std::ostream& str,
           else
             try {
               printValue(str, state, *i.second, maxDepth - 1, seen);
-            } catch (AssertionError& e) {
+            } catch (nix::AssertionError& e) {
               str << "«error: " << e.msg() << "»";
             }
           str << "; ";
@@ -101,7 +93,7 @@ std::ostream& printValue(std::ostream& str,
         str << "{ ... }";
       break;
     }
-    case nList:
+    case nix::nList:
       seen.insert(&v);
       str << "[ ";
       if (maxDepth > 0)
@@ -111,7 +103,7 @@ std::ostream& printValue(std::ostream& str,
           else
             try {
               printValue(str, state, *elem, maxDepth - 1, seen);
-            } catch (AssertionError& e) {
+            } catch (nix::AssertionError& e) {
               str << "«error: " << e.msg() << "»";
             }
           str << " ";
@@ -120,11 +112,11 @@ std::ostream& printValue(std::ostream& str,
         str << "... ";
       str << "]";
       break;
-    case nFunction:
+    case nix::nFunction:
       if (v.isLambda()) {
         std::ostringstream s;
         s << v.lambda.fun->pos;
-        str << "«lambda @ " << filterANSIEscapes(s.str()) << "»";
+        str << "«lambda @ " << nix::filterANSIEscapes(s.str()) << "»";
       } else if (v.isPrimOp()) {
         str << "«primop»";
       } else if (v.isPrimOpApp()) {
@@ -133,7 +125,7 @@ std::ostream& printValue(std::ostream& str,
         abort();
       }
       break;
-    case nFloat:
+    case nix::nFloat:
       str << v.fpoint;
       break;
     default:

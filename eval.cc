@@ -4,24 +4,24 @@
 #include <cstring>
 #include <iostream>
 
-#include "eval-inline.hh"
-#include "eval.hh"
-#include "store-api.hh"
+#include "nix/eval-inline.hh"
+#include "nix/eval.hh"
+#include "nix/store-api.hh"
 
-using namespace nix;
-int main() {
-  initGC();
+int main(int argc, char *argv[]) {
+  nix::initGC();
 
   // evalSettings.pureEval = true;
   // evalSettings.nixPath = {};
-  evalSettings.restrictEval = true;
-  evalSettings.enableImportFromDerivation = false;
-  evalSettings.useEvalCache = false;
+  nix::evalSettings.restrictEval = true;
+  nix::evalSettings.enableImportFromDerivation = false;
+  nix::evalSettings.useEvalCache = false;
 
   std::list<std::string> search = {};
-  auto state = std::allocate_shared<EvalState>(traceable_allocator<EvalState>(), search, openStore("file:///tmp/eval"));
-  Expr* expr = state->parseExprFromString("with import <nixpkgs> {}; hello", "/var/empty");
-  Value value;
+  auto state = std::allocate_shared<nix::EvalState>(traceable_allocator<nix::EvalState>(), search, nix::openStore("file:///tmp/eval"));
+  nix::Expr* expr = state->parseExprFromString(argv[1], "/var/empty");
+  nix::Value value;
   state->eval(expr, value);
-  printValue(std::cout, *state, value, 1) << std::endl;
+  std::set<nix::Value*> seen;
+  printValue(std::cout, *state, value, 1, seen) << std::endl;
 }
