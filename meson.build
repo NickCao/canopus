@@ -1,3 +1,3 @@
 project('canopus', 'cpp')
 nixexpr = dependency('nix-expr')
-executable('canopus', ['fmt.cc', 'eval.cc'], install : true, dependencies : [nixexpr])
+executable('canopus', ['canopus.cc'], install : true, dependencies : [nixexpr])
