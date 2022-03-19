@@ -2,6 +2,7 @@
 #define HAVE_BOEHMGC 1
 
 #include <linux/landlock.h>
+#include <seccomp.h>
 #include <sys/prctl.h>
 #include <sys/syscall.h>
 #include <iostream>
@@ -278,18 +279,20 @@ int main(int argc, char* argv[]) {
           LANDLOCK_ACCESS_FS_MAKE_FIFO | LANDLOCK_ACCESS_FS_MAKE_BLOCK |
           LANDLOCK_ACCESS_FS_MAKE_SYM,
   };
-  int ruleset_fd = landlock_create_ruleset(&ruleset_attr, sizeof(ruleset_attr), 0);
+  int ruleset_fd =
+      landlock_create_ruleset(&ruleset_attr, sizeof(ruleset_attr), 0);
   if (ruleset_fd < 0)
     throw std::runtime_error("failed to create landlock ruleset");
 
   struct landlock_path_beneath_attr path_beneath = {
-    .allowed_access = LANDLOCK_ACCESS_FS_READ_FILE |
-                      LANDLOCK_ACCESS_FS_READ_DIR,
-    .parent_fd = open(nixpkgs.c_str(), O_PATH | O_CLOEXEC),
+      .allowed_access =
+          LANDLOCK_ACCESS_FS_READ_FILE | LANDLOCK_ACCESS_FS_READ_DIR,
+      .parent_fd = open(nixpkgs.c_str(), O_PATH | O_CLOEXEC),
   };
   if (path_beneath.parent_fd < 0)
     throw std::runtime_error("failed to open path to nixpkgs");
-  if (landlock_add_rule(ruleset_fd, LANDLOCK_RULE_PATH_BENEATH, &path_beneath, 0))
+  if (landlock_add_rule(ruleset_fd, LANDLOCK_RULE_PATH_BENEATH, &path_beneath,
+                        0))
     throw std::runtime_error("failed to add landlock rule");
   close(path_beneath.parent_fd);
 
@@ -299,6 +302,29 @@ int main(int argc, char* argv[]) {
     throw std::runtime_error("failed to restrict self");
   close(ruleset_fd);
 
-  auto evaluator = Evaluator({"nixpkgs="+nixpkgs});
+  scmp_filter_ctx ctx = seccomp_init(SCMP_ACT_KILL_PROCESS);
+  if (ctx == NULL)
+    throw std::runtime_error("failed to init seccomp context");
+  for (auto nr : {
+           SCMP_SYS(read),
+           SCMP_SYS(write),
+           SCMP_SYS(close),
+           SCMP_SYS(openat),
+           SCMP_SYS(newfstatat),
+           SCMP_SYS(fgetxattr),
+           SCMP_SYS(brk),
+           SCMP_SYS(mmap),
+           SCMP_SYS(munmap),
+           SCMP_SYS(futex),
+           SCMP_SYS(getegid32),
+           SCMP_SYS(exit_group),
+       })
+    if (seccomp_rule_add(ctx, SCMP_ACT_ALLOW, nr, 0) < 0)
+      throw std::runtime_error("failed to add seccomp rule");
+  if (seccomp_load(ctx) < 0)
+    throw std::runtime_error("failed to load seccomp rule");
+  seccomp_release(ctx);
+
+  auto evaluator = Evaluator({"nixpkgs=" + nixpkgs});
   std::cout << evaluator.eval(expr);
 }
