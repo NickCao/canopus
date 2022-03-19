@@ -1,12 +1,8 @@
 #define SYSTEM "dummy"
 #define HAVE_BOEHMGC 1
 
-#include <cstdlib>
-#include <cstring>
 #include <iostream>
-
 #include "nix/eval-inline.hh"
-#include "nix/eval.hh"
 #include "nix/store-api.hh"
 
 struct Evaluator {
@@ -18,12 +14,11 @@ struct Evaluator {
   }
 
   std::string eval(std::string expr, nix::Path path) {
-    auto parsed = state->parseExprFromString(expr, path);
     nix::Value value;
-    state->eval(parsed, value);
     std::set<nix::Value*> seen;
     std::ostringstream out;
-    format_value(out, value, 1, seen) << std::endl;
+    state->eval(state->parseExprFromString(expr, path), value);
+    format_value(out, value, 1, seen);
     return out.str();
   }
 
