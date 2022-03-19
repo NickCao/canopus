@@ -43,6 +43,7 @@ std::ostream& printValue(std::ostream& str,
                          Value& v,
                          unsigned int maxDepth,
                          ValuesSeen& seen) {
+  state.forceValue(v, [&]() { return v.determinePos(noPos); });
   switch (v.type()) {
     case nInt:
       str << v.integer;
