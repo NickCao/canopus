@@ -4,13 +4,86 @@
 #include <iostream>
 #include "nix/eval-inline.hh"
 #include "nix/store-api.hh"
+#include "nix/callback.hh"
+
+struct DummyStoreConfig : virtual nix::StoreConfig {
+  using nix::StoreConfig::StoreConfig;
+  const std::string name() override { return "Dummy Store"; }
+};
+
+struct DummyStore : public virtual DummyStoreConfig, public virtual nix::Store {
+  DummyStore(const std::string scheme,
+             const std::string uri,
+             const nix::Store::Params& params)
+      : DummyStore(params) {}
+
+  DummyStore(const nix::Store::Params& params)
+      : nix::StoreConfig(params),
+        DummyStoreConfig(params),
+        nix::Store(params) {}
+  nix::StorePath addToStoreFromDump(
+      nix::Source& dump,
+      std::string_view name,
+      nix::FileIngestionMethod method,
+      nix::HashType hashAlgo,
+      nix::RepairFlag repair,
+      const nix::StorePathSet& references) override {
+    auto hashSink = std::make_unique<nix::HashSink>(hashAlgo);
+    return nix::StorePath("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-invalid");
+  }
+  nix::StorePath addTextToStore(std::string_view name,
+                                std::string_view s,
+                                const nix::StorePathSet& references,
+                                nix::RepairFlag repair) override {
+    auto hash = nix::hashString(nix::htSHA256, s);
+    return makeTextPath(name, hash, references);
+  }
+
+  std::string getUri() override { return *uriSchemes().begin(); }
+
+  void queryPathInfoUncached(
+      const nix::StorePath& path,
+      nix::Callback<std::shared_ptr<const nix::ValidPathInfo>>
+          callback) noexcept override {
+    callback(nullptr);
+  }
+
+  static std::set<std::string> uriSchemes() { return {"dummy"}; }
+
+  std::optional<nix::StorePath> queryPathFromHashPart(
+      const std::string& hashPart) override {
+    unsupported("queryPathFromHashPart");
+  }
+
+  void addToStore(const nix::ValidPathInfo& info,
+                  nix::Source& source,
+                  nix::RepairFlag repair,
+                  nix::CheckSigsFlag checkSigs) override {
+    unsupported("addToStore");
+  }
+
+  void narFromPath(const nix::StorePath& path, nix::Sink& sink) override {
+    unsupported("narFromPath");
+  }
+
+  void queryRealisationUncached(
+      const nix::DrvOutput&,
+      nix::Callback<std::shared_ptr<const nix::Realisation>> callback) noexcept
+      override {
+    callback(nullptr);
+  }
+};
 
 struct Evaluator {
   std::shared_ptr<nix::EvalState> state;
 
-  Evaluator(std::list<std::string> search, std::string store) {
+  Evaluator(std::list<std::string> search) {
+    nix::Store::Params params;
+    auto dummy = std::make_shared<DummyStore>(params);
+    dummy->init();
     state = std::allocate_shared<nix::EvalState>(
-        traceable_allocator<nix::EvalState>(), search, nix::openStore(store));
+        traceable_allocator<nix::EvalState>(), search,
+        nix::ref<nix::Store>(dummy));
   }
 
   std::string eval(std::string expr) {
@@ -165,11 +238,12 @@ struct Evaluator {
 };
 
 int main(int argc, char* argv[]) {
-  if (argc != 4) {
-    std::cout << "usage: canopus [eval store] [path to nixpkgs] [expression]" << std::endl;
+  if (argc != 3) {
+    std::cout << "usage: canopus [path to nixpkgs] [expression]"
+              << std::endl;
     exit(1);
   }
   Evaluator::init();
-  auto evaluator = Evaluator({"nixpkgs="+std::string(argv[2])}, argv[1]);
-  std::cout << evaluator.eval(argv[3]);
+  auto evaluator = Evaluator({"nixpkgs=" + std::string(argv[1])});
+  std::cout << evaluator.eval(argv[2]);
 }
