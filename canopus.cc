@@ -157,9 +157,7 @@ struct Evaluator {
 
   static void init() {
     nix::initGC();
-
-    // evalSettings.pureEval = true;
-    // evalSettings.nixPath = {};
+    nix::evalSettings.nixPath = {};
     nix::evalSettings.restrictEval = true;
     nix::evalSettings.enableImportFromDerivation = false;
     nix::evalSettings.useEvalCache = false;
@@ -167,8 +165,11 @@ struct Evaluator {
 };
 
 int main(int argc, char* argv[]) {
+  if (argc != 4) {
+    std::cout << "usage: canopus [eval store] [path to nixpkgs] [expression]" << std::endl;
+    exit(1);
+  }
   Evaluator::init();
-  auto evaluator = Evaluator({}, "file:///tmp/eval");
-  std::cout << evaluator.eval("(import <nixpkgs> {}).firefoxPackages",
-                              "/var/empty");
+  auto evaluator = Evaluator({"nixpkgs="+std::string(argv[2])}, argv[1]);
+  std::cout << evaluator.eval(argv[3], "/var/empty");
 }
