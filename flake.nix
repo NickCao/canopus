@@ -19,6 +19,7 @@
             buildInputs = with pkgs;[
               nixVersions.stable
               boost
+              libseccomp
             ];
           };
           devShell = pkgs.mkShell {

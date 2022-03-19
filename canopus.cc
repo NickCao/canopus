@@ -213,7 +213,7 @@ struct Evaluator {
         if (value.isLambda()) {
           std::ostringstream s;
           s << value.lambda.fun->pos;
-          out << "«lambda @ " << nix::filterANSIEscapes(s.str()) << "»";
+          out << "«lambda @ " << nix::filterANSIEscapes(s.str(), true) << "»";
         } else if (value.isPrimOp()) {
           out << "«primop»";
         } else if (value.isPrimOpApp()) {
@@ -326,5 +326,9 @@ int main(int argc, char* argv[]) {
   seccomp_release(ctx);
 
   auto evaluator = Evaluator({"nixpkgs=" + nixpkgs});
-  std::cout << evaluator.eval(expr);
+  try {
+    std::cout << evaluator.eval(expr);
+  } catch (const std::exception& e) {
+    std::cout << nix::filterANSIEscapes(e.what(), true);
+  }
 }
