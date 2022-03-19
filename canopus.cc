@@ -1,6 +1,9 @@
 #define SYSTEM "dummy"
 #define HAVE_BOEHMGC 1
 
+#include <linux/landlock.h>
+#include <sys/prctl.h>
+#include <sys/syscall.h>
 #include <iostream>
 #include "nix/eval-inline.hh"
 #include "nix/store-api.hh"
@@ -237,13 +240,66 @@ struct Evaluator {
   }
 };
 
+static inline int landlock_create_ruleset(
+    const struct landlock_ruleset_attr* const attr,
+    const size_t size,
+    const __u32 flags) {
+  return syscall(__NR_landlock_create_ruleset, attr, size, flags);
+}
+static inline int landlock_add_rule(const int ruleset_fd,
+                                    const enum landlock_rule_type rule_type,
+                                    const void* const rule_attr,
+                                    const __u32 flags) {
+  return syscall(__NR_landlock_add_rule, ruleset_fd, rule_type, rule_attr,
+                 flags);
+}
+static inline int landlock_restrict_self(const int ruleset_fd,
+                                         const __u32 flags) {
+  return syscall(__NR_landlock_restrict_self, ruleset_fd, flags);
+}
+
 int main(int argc, char* argv[]) {
   if (argc != 3) {
-    std::cout << "usage: canopus [path to nixpkgs] [expression]"
-              << std::endl;
+    std::cout << "usage: canopus [path to nixpkgs] [expression]" << std::endl;
     exit(1);
   }
+
+  auto nixpkgs = nix::absPath(argv[1]);
+  auto expr = argv[2];
   Evaluator::init();
-  auto evaluator = Evaluator({"nixpkgs=" + std::string(argv[1])});
-  std::cout << evaluator.eval(argv[2]);
+
+  struct landlock_ruleset_attr ruleset_attr = {
+      .handled_access_fs =
+          LANDLOCK_ACCESS_FS_EXECUTE | LANDLOCK_ACCESS_FS_WRITE_FILE |
+          LANDLOCK_ACCESS_FS_READ_FILE | LANDLOCK_ACCESS_FS_READ_DIR |
+          LANDLOCK_ACCESS_FS_REMOVE_DIR | LANDLOCK_ACCESS_FS_REMOVE_FILE |
+          LANDLOCK_ACCESS_FS_MAKE_CHAR | LANDLOCK_ACCESS_FS_MAKE_DIR |
+          LANDLOCK_ACCESS_FS_MAKE_REG | LANDLOCK_ACCESS_FS_MAKE_SOCK |
+          LANDLOCK_ACCESS_FS_MAKE_FIFO | LANDLOCK_ACCESS_FS_MAKE_BLOCK |
+          LANDLOCK_ACCESS_FS_MAKE_SYM,
+  };
+  int ruleset_fd = landlock_create_ruleset(&ruleset_attr, sizeof(ruleset_attr), 0);
+  if (ruleset_fd < 0)
+    throw std::runtime_error("failed to create landlock ruleset");
+
+  struct landlock_path_beneath_attr path_beneath = {
+    .allowed_access = LANDLOCK_ACCESS_FS_EXECUTE |
+                      LANDLOCK_ACCESS_FS_READ_FILE |
+                      LANDLOCK_ACCESS_FS_READ_DIR,
+    .parent_fd = open(nixpkgs.c_str(), O_PATH | O_CLOEXEC),
+  };
+  if (path_beneath.parent_fd < 0)
+    throw std::runtime_error("failed to open path to nixpkgs");
+  if (landlock_add_rule(ruleset_fd, LANDLOCK_RULE_PATH_BENEATH, &path_beneath, 0))
+    throw std::runtime_error("failed to add landlock rule");
+  close(path_beneath.parent_fd);
+
+  if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0))
+    throw std::runtime_error("failed to set no new privs");
+  if (landlock_restrict_self(ruleset_fd, 0))
+    throw std::runtime_error("failed to restrict self");
+  close(ruleset_fd);
+
+  auto evaluator = Evaluator({"nixpkgs="+nixpkgs});
+  std::cout << evaluator.eval(expr);
 }
