@@ -11,16 +11,18 @@
 using namespace nix;
 int main() {
   initGC();
+  // evalSettings.pureEval = true;
+  evalSettings.restrictEval = true;
+  evalSettings.enableImportFromDerivation = false;
+  evalSettings.useEvalCache = false;
   std::list<std::string> search = {};
   auto state = std::allocate_shared<EvalState>(
-      traceable_allocator<EvalState>(), search, openStore("file:///tmp/eval"),
-      openStore("file:///tmp/eval"));
+      traceable_allocator<EvalState>(), search, openStore("file:///tmp/eval"));
   auto env = &state->allocEnv(32768);
   Value v;
-  Expr* e = state->parseExprFromString("with import <nixpkgs> {};hello",
+  Expr* e = state->parseExprFromString("with import <nixpkgs> {}; hello",
                                        absPath("."));
   state->eval(e, v);
   state->forceValue(v, [&]() { return v.determinePos(noPos); });
   printValue(std::cout, *state, v, 1) << std::endl;
 }
-
