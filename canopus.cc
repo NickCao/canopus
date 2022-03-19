@@ -13,11 +13,11 @@ struct Evaluator {
         traceable_allocator<nix::EvalState>(), search, nix::openStore(store));
   }
 
-  std::string eval(std::string expr, nix::Path path) {
+  std::string eval(std::string expr) {
     nix::Value value;
     std::set<nix::Value*> seen;
     std::ostringstream out;
-    state->eval(state->parseExprFromString(expr, path), value);
+    state->eval(state->parseExprFromString(expr, "/var/empty"), value);
     format_value(out, value, 1, seen);
     return out.str();
   }
@@ -171,5 +171,5 @@ int main(int argc, char* argv[]) {
   }
   Evaluator::init();
   auto evaluator = Evaluator({"nixpkgs="+std::string(argv[2])}, argv[1]);
-  std::cout << evaluator.eval(argv[3], "/var/empty");
+  std::cout << evaluator.eval(argv[3]);
 }
