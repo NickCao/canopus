@@ -284,17 +284,19 @@ int main(int argc, char* argv[]) {
   if (ruleset_fd < 0)
     throw std::runtime_error("failed to create landlock ruleset");
 
-  struct landlock_path_beneath_attr path_beneath = {
-      .allowed_access =
-          LANDLOCK_ACCESS_FS_READ_FILE | LANDLOCK_ACCESS_FS_READ_DIR,
-      .parent_fd = open(nixpkgs.c_str(), O_PATH | O_CLOEXEC),
+  for (auto path : {"/proc/self", nixpkgs.c_str()}) {
+    struct landlock_path_beneath_attr path_beneath = {
+        .allowed_access =
+            LANDLOCK_ACCESS_FS_READ_FILE | LANDLOCK_ACCESS_FS_READ_DIR,
+        .parent_fd = open(path, O_PATH | O_CLOEXEC),
+    };
+    if (path_beneath.parent_fd < 0)
+      throw std::runtime_error("failed to open path to nixpkgs");
+    if (landlock_add_rule(ruleset_fd, LANDLOCK_RULE_PATH_BENEATH, &path_beneath,
+                          0))
+      throw std::runtime_error("failed to add landlock rule");
+    close(path_beneath.parent_fd);
   };
-  if (path_beneath.parent_fd < 0)
-    throw std::runtime_error("failed to open path to nixpkgs");
-  if (landlock_add_rule(ruleset_fd, LANDLOCK_RULE_PATH_BENEATH, &path_beneath,
-                        0))
-    throw std::runtime_error("failed to add landlock rule");
-  close(path_beneath.parent_fd);
 
   if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0))
     throw std::runtime_error("failed to set no new privs");
@@ -318,6 +320,12 @@ int main(int argc, char* argv[]) {
            SCMP_SYS(futex),
            SCMP_SYS(getegid32),
            SCMP_SYS(exit_group),
+           SCMP_SYS(prlimit64),
+           SCMP_SYS(gettid),
+           SCMP_SYS(getpid),
+           SCMP_SYS(sched_getaffinity),
+           SCMP_SYS(tgkill),
+           SCMP_SYS(rt_sigprocmask),
        })
     if (seccomp_rule_add(ctx, SCMP_ACT_ALLOW, nr, 0) < 0)
       throw std::runtime_error("failed to add seccomp rule");
