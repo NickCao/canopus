@@ -1,6 +1,7 @@
 #define SYSTEM "dummy"
 #define HAVE_BOEHMGC 1
 
+#include <cassert>
 #include <linux/landlock.h>
 #include <seccomp.h>
 #include <sys/prctl.h>
