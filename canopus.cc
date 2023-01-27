@@ -10,6 +10,7 @@
 #include "nix/callback.hh"
 #include "nix/eval-inline.hh"
 #include "nix/store-api.hh"
+#include "nix/shared.hh"
 
 struct DummyStoreConfig : virtual nix::StoreConfig {
   using nix::StoreConfig::StoreConfig;
@@ -114,6 +115,7 @@ struct Evaluator {
   }
 
   static void init() {
+    nix::initNix();
     nix::initGC();
     nix::evalSettings.nixPath = {};
     nix::evalSettings.restrictEval = true;

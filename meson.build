@@ -1,4 +1,5 @@
 project('canopus', 'cpp')
 nixexpr = dependency('nix-expr')
+nixmain = dependency('nix-main')
 seccomp = dependency('libseccomp')
-executable('canopus', ['canopus.cc'], install : true, dependencies : [nixexpr,seccomp])
+executable('canopus', ['canopus.cc'], install : true, dependencies : [ nixexpr, nixmain, seccomp ])
