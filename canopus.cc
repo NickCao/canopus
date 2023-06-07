@@ -78,6 +78,10 @@ struct DummyStore : public virtual DummyStoreConfig, public virtual nix::Store {
       override {
     callback(nullptr);
   }
+
+  std::optional<nix::TrustedFlag> isTrustedClient() override {
+      return nix::Trusted;
+  }
 };
 
 struct Evaluator {
@@ -103,7 +107,7 @@ struct Evaluator {
       ss << "<derivation ";
       if (i != value.attrs->end()) {
         ss << state->store->printStorePath(
-            state->coerceToStorePath(i->pos, *i->value, context));
+            state->coerceToStorePath(i->pos, *i->value, context, ""));
       } else {
         ss << "???";
       }
